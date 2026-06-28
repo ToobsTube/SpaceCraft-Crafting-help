@@ -446,11 +446,14 @@ function renderRecipeBlock(recipe, idLookup) {
 
 // ---- Raw materials breakdown (recursive) ----
 // Walks every sub-recipe down to ingredients with no recipe of their own (true raw
-// materials, or unconfirmed gaps), summing total quantities needed to make ONE of the
-// top-level item. Where an item has multiple recipe paths, the first listed one is used.
+// materials, or unconfirmed gaps). Tracks TWO buckets:
+//   - intermediates: anything that itself has a recipe (e.g. Copper Ingot) — these get
+//     fully expanded further, but we still record how much of them is needed along the way.
+//   - totals: the true raw leaves at the bottom of the chain (e.g. Copper Ore).
+// Where an item has multiple recipe paths, the first listed one is used.
 // Items with a flat `ingredients` list (no recipes array, e.g. placeable buildings) are
 // supported too — treated as a single batch of 1.
-function computeRawMaterials(itemId, neededQty, totals, visiting) {
+function computeRawMaterials(itemId, neededQty, totals, intermediates, visiting) {
   const item = state.items.find((i) => i.id === itemId);
   if (!item || visiting.has(itemId)) return;
 
@@ -475,7 +478,8 @@ function computeRawMaterials(itemId, neededQty, totals, visiting) {
     const subExpandable = subItem && !cyclic && ((subItem.recipes && subItem.recipes.length) || (subItem.ingredients && subItem.ingredients.length));
 
     if (subExpandable) {
-      computeRawMaterials(slug, requiredQty, totals, visiting);
+      intermediates.set(ing.item, (intermediates.get(ing.item) || 0) + requiredQty);
+      computeRawMaterials(slug, requiredQty, totals, intermediates, visiting);
     } else {
       totals.set(ing.item, (totals.get(ing.item) || 0) + requiredQty);
     }
@@ -488,7 +492,8 @@ function renderRawBreakdown(itemId, container, qty, mode) {
   qty = qty || 1;
   mode = mode || 'manual';
   const totals = new Map();
-  computeRawMaterials(itemId, qty, totals, new Set());
+  const intermediates = new Map();
+  computeRawMaterials(itemId, qty, totals, intermediates, new Set());
   const idLookup = new Set(state.items.map((i) => i.id));
 
   const topItem = state.items.find((i) => i.id === itemId);
@@ -506,22 +511,29 @@ function renderRawBreakdown(itemId, container, qty, mode) {
     timeLine = `<p class="time-line">&#9201; ~${formatDuration(batchesNeeded * perCraft)} to craft ×${qty} (${batchesNeeded} batch${batchesNeeded === 1 ? '' : 'es'} of ${perCraft}s each, ${modeLabel}, one machine running back-to-back)${fallbackNote}</p>`;
   }
 
-  const rows = Array.from(totals.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([name, total]) => {
-      const slug = slugify(name);
-      const linkable = idLookup.has(slug);
-      const linkAttrs = linkable ? ` data-target="${slug}"` : '';
-      const linkClass = linkable ? ' linkable' : '';
-      const displayQty = Math.ceil(total - 1e-9); // tiny epsilon guards against float noise like 6.0000000001
-      return `<li><span class="ing-name${linkClass}"${linkAttrs}>${escapeHtml(name)}</span><span class="ing-qty">×${displayQty}</span></li>`;
-    })
-    .join('');
+  const renderRows = (map) =>
+    Array.from(map.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, total]) => {
+        const slug = slugify(name);
+        const linkable = idLookup.has(slug);
+        const linkAttrs = linkable ? ` data-target="${slug}"` : '';
+        const linkClass = linkable ? ' linkable' : '';
+        const displayQty = Math.ceil(total - 1e-9); // tiny epsilon guards against float noise like 6.0000000001
+        return `<li><span class="ing-name${linkClass}"${linkAttrs}>${escapeHtml(name)}</span><span class="ing-qty">×${displayQty}</span></li>`;
+      })
+      .join('');
+
+  const intermediateSection = intermediates.size
+    ? `<p class="section-label">Sub-crafts needed along the way</p><ul class="ingredients raw-list">${renderRows(intermediates)}</ul>`
+    : '';
 
   container.innerHTML = `
     ${timeLine}
     <p class="raw-note">Everything needed for ×${qty}, tracing each sub-recipe down to its base materials (using the first recipe option at each step where there's more than one):</p>
-    <ul class="ingredients raw-list">${rows}</ul>
+    ${intermediateSection}
+    <p class="section-label">Base/raw materials</p>
+    <ul class="ingredients raw-list">${renderRows(totals)}</ul>
   `;
 
   container.querySelectorAll('.ing-name.linkable').forEach((link) => {
