@@ -663,6 +663,8 @@ h1 {
   z-index: 100;
 }
 
+.plan-overlay[hidden] { display: none; }
+
 .plan-modal {
   background: var(--bg);
   border: 1px solid var(--border);
