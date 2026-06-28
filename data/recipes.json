@@ -280,5 +280,33 @@
     { "resource": "Chalcopyrite", "yield": 1.2 },
     { "resource": "Brassy Outcrop", "yield": "<1" },
     { "resource": "Copper Deposit", "yield": "60.0/h" }
+  ] },
+
+  { "id": "module-kit", "name": "Module Kit", "category": "Ship Component", "station": "Workshop", "type": "craft", "verified": true, "source": "in-game screenshot", "module_info": { "subcategory": "Kit and Casing" }, "recipes": [
+    { "label": "Standard", "ingredients": [{ "item": "Small Module Kit", "qty": 4 }, { "item": "Graphene", "qty": 20 }, { "item": "Strong Metal Sheet", "qty": 20 }], "craft_time_sec": 16, "storage_units": 25, "added_value": 44.2, "tax": { "workshop": 2.25 } }
+  ] },
+
+  { "id": "strong-metal-sheet", "name": "Strong Metal Sheet", "category": "Components", "station": "Workshop", "type": "craft", "verified": true, "source": "in-game screenshot", "recipes": [
+    { "label": "Standard", "ingredients": [{ "item": "Titanium Ingot", "qty": 1 }, { "item": "Iron Ingot", "qty": 1 }], "output_qty": 2, "craft_time_sec": 2, "storage_units": 1, "added_value": 1.2, "tax": { "workshop": 0.36 } }
+  ] },
+
+  { "id": "cargo-hold", "name": "Cargo Hold", "category": "Internal Module", "station": "Workshop", "type": "craft", "verified": true, "source": "in-game screenshot", "note": "Internal Module category confirmed. Subcategory likely 'Storage Module' like Small Cargo Hold, but sell price/description still unconfirmed without a proper encyclopedia screenshot.", "recipes": [
+    { "label": "Standard", "ingredients": [{ "item": "Module Kit", "qty": 1 }, { "item": "Metal Sheet", "qty": 30 }, { "item": "Silicone Gel", "qty": 20 }], "craft_time_sec": 16, "storage_units": 25, "added_value": 54.6, "tax": { "workshop": 3.02 } }
+  ] },
+
+  { "id": "hi-pi-laser", "name": "Hi-Pi Laser", "category": "External Module", "station": "Workshop", "type": "craft", "verified": true, "source": "in-game screenshot", "module_info": { "subcategory": "Gathering" }, "note": "Confirmed as a mining laser, same Gathering subcategory as Simple/Overclocked Mining Laser. Sell price/description still unconfirmed without a proper encyclopedia screenshot.", "recipes": [
+    { "label": "Standard", "ingredients": [{ "item": "Module Kit", "qty": 1 }, { "item": "Hyper Lens", "qty": 3 }], "craft_time_sec": 16, "storage_units": 25, "added_value": 68, "tax": { "workshop": 5.27 } }
+  ] },
+
+  { "id": "overclocked-hi-pi-laser", "name": "Overclocked Hi-Pi Laser", "category": "External Module", "station": "Workshop", "type": "craft", "verified": true, "source": "in-game screenshot", "module_info": { "subcategory": "Gathering" }, "note": "Confirmed mining laser, same Gathering subcategory as Hi-Pi Laser.", "recipes": [
+    { "label": "Standard", "ingredients": [{ "item": "Hi-Pi Laser", "qty": 1 }, { "item": "Hyper Lens", "qty": 5 }, { "item": "Magnetic Coil", "qty": 10 }], "craft_time_sec": 25, "storage_units": 25, "added_value": 240, "tax": { "workshop": 11.42 } }
+  ] },
+
+  { "id": "mining-laser-control-mod", "name": "Mining Laser Control Mod", "category": "Internal Module", "station": "Workshop", "type": "craft", "verified": true, "source": "in-game screenshot", "note": "Internal Module category confirmed. 'Control Mod' itself is still a new subcategory with no other precedent in our data yet — exact subcategory label unconfirmed.", "recipes": [
+    { "label": "Standard", "ingredients": [{ "item": "Small Module Kit", "qty": 1 }, { "item": "Microchip", "qty": 2 }], "craft_time_sec": 10, "storage_units": 10, "added_value": 3.32, "tax": { "workshop": 0.42 } }
+  ] },
+
+  { "id": "booster-control-mod", "name": "Booster Control Mod", "category": "Internal Module", "station": "Workshop", "type": "craft", "verified": true, "source": "in-game screenshot", "note": "Internal Module category confirmed, same 'Control Mod' subcategory caveat as Mining Laser Control Mod.", "recipes": [
+    { "label": "Standard", "ingredients": [{ "item": "Small Module Kit", "qty": 1 }, { "item": "Microchip", "qty": 1 }, { "item": "Magnetic Coil", "qty": 5 }], "craft_time_sec": 10, "storage_units": 10, "added_value": 10.66, "tax": { "workshop": 0.7 } }
   ] }
 ]
