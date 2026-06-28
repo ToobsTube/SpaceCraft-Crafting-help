@@ -100,10 +100,11 @@ function wireItemControls(root) {
     const toggleBtn = wrap.querySelector('.raw-toggle');
     const qtyInput = wrap.querySelector('.qty-input');
     const speedBtn = wrap.querySelector('.speed-toggle');
+    const locBtn = wrap.querySelector('[data-loc]');
     const container = wrap.querySelector('.raw-breakdown');
 
     const refresh = () => {
-      renderRawBreakdown(id, container, getQty(qtyInput), getMode(speedBtn));
+      renderRawBreakdown(id, container, getQty(qtyInput), getMode(speedBtn), getLocation(locBtn));
       refreshAccordionHeight(wrap);
     };
 
@@ -129,6 +130,15 @@ function wireItemControls(root) {
       speedBtn.classList.toggle('active', nextMode === 'auto');
       if (!container.hidden) refresh();
     });
+
+    locBtn && locBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const nextLoc = locBtn.dataset.loc === 'station' ? 'base' : 'station';
+      locBtn.dataset.loc = nextLoc;
+      locBtn.textContent = nextLoc === 'base' ? 'Base' : 'Station';
+      locBtn.classList.toggle('active', nextLoc === 'base');
+      if (!container.hidden) refresh();
+    });
   });
 }
 
@@ -147,6 +157,10 @@ function getQty(input) {
 
 function getMode(btn) {
   return (btn && btn.dataset.mode) || 'manual';
+}
+
+function getLocation(btn) {
+  return (btn && btn.dataset.loc) || 'station';
 }
 
 // ---- Detail panel (persistent second column on wide screens) ----
@@ -181,7 +195,7 @@ function renderDetailPanel(itemId) {
   if (wrap) {
     const container = wrap.querySelector('.raw-breakdown');
     const toggleBtn = wrap.querySelector('.raw-toggle');
-    renderRawBreakdown(item.id, container, 1, 'manual');
+    renderRawBreakdown(item.id, container, 1, 'manual', 'station');
     container.hidden = false;
     toggleBtn.innerHTML = 'Hide full raw materials &#9652;';
   }
@@ -309,6 +323,7 @@ function buildItemBody(item, idLookup, domId) {
           <button class="raw-toggle">Show full raw materials &#9662;</button>
           <input type="number" class="qty-input" id="qty-${domId}" min="1" step="1" value="1" aria-label="Quantity">
           ${hasRecipes ? `<button class="speed-toggle" id="speed-${domId}" data-mode="manual">Manual</button>` : ''}
+          ${hasRecipes ? `<button class="speed-toggle" id="loc-${domId}" data-loc="station">Station</button>` : ''}
         </div>
         <div class="raw-breakdown" id="raw-${domId}" hidden></div>
       </div>
@@ -488,9 +503,53 @@ function computeRawMaterials(itemId, neededQty, totals, intermediates, visiting)
   visiting.delete(itemId);
 }
 
-function renderRawBreakdown(itemId, container, qty, mode) {
+// ---- Total station tax across the whole craft chain ----
+// New players without a base have no choice but to craft at a taxed station — and
+// that tax applies to EVERY step in the chain, not just the top-level item. This walks
+// the same tree as computeRawMaterials but sums up tax cost instead of materials.
+// `acc` is a mutable accumulator: { total: number, incomplete: boolean }. `incomplete`
+// gets flagged if any craft step along the way doesn't have a confirmed tax number yet
+// (e.g. the Crystallizer recipes), so the total is a known lower bound in that case.
+function computeTotalTax(itemId, neededQty, visiting, acc) {
+  const item = state.items.find((i) => i.id === itemId);
+  if (!item || visiting.has(itemId)) return;
+
+  const recipe = item.recipes && item.recipes.length ? item.recipes[0] : null;
+  const flatIngredients = !recipe && item.ingredients && item.ingredients.length ? item.ingredients : null;
+  if (!recipe && !flatIngredients) return; // raw leaf — no craft step, no tax
+
+  visiting.add(itemId);
+  const ingredients = recipe ? recipe.ingredients : flatIngredients;
+  const batchSize = recipe ? recipe.output_qty || 1 : 1;
+  const batches = neededQty / batchSize;
+
+  if (recipe) {
+    const taxedEntry = recipe.tax && Object.entries(recipe.tax).find(([loc]) => loc !== 'personal_base');
+    if (taxedEntry) {
+      acc.total += batches * taxedEntry[1];
+    } else {
+      acc.incomplete = true;
+    }
+  }
+
+  (ingredients || []).forEach((ing) => {
+    const slug = slugify(ing.item);
+    const subItem = state.items.find((i) => i.id === slug);
+    const requiredQty = ing.qty * batches;
+    const cyclic = subItem && visiting.has(slug);
+    const subExpandable = subItem && !cyclic && ((subItem.recipes && subItem.recipes.length) || (subItem.ingredients && subItem.ingredients.length));
+    if (subExpandable) {
+      computeTotalTax(slug, requiredQty, visiting, acc);
+    }
+  });
+
+  visiting.delete(itemId);
+}
+
+function renderRawBreakdown(itemId, container, qty, mode, location) {
   qty = qty || 1;
   mode = mode || 'manual';
+  location = location || 'station';
   const totals = new Map();
   const intermediates = new Map();
   computeRawMaterials(itemId, qty, totals, intermediates, new Set());
@@ -509,6 +568,20 @@ function renderRawBreakdown(itemId, container, qty, mode) {
     const modeLabel = usingAuto ? 'auto machine' : 'manual craft';
     const fallbackNote = fellBack ? ' — auto time not confirmed yet for this one, showing manual instead' : '';
     timeLine = `<p class="time-line">&#9201; ~${formatDuration(batchesNeeded * perCraft)} to craft ×${qty} (${batchesNeeded} batch${batchesNeeded === 1 ? '' : 'es'} of ${perCraft}s each, ${modeLabel}, one machine running back-to-back)${fallbackNote}</p>`;
+  }
+
+  let costLine = '';
+  if (topRecipe) {
+    if (location === 'base') {
+      costLine = `<p class="cost-line">&#128176; Free — no tax crafting at a personal base.</p>`;
+    } else {
+      const acc = { total: 0, incomplete: false };
+      computeTotalTax(itemId, qty, new Set(), acc);
+      const incompleteNote = acc.incomplete
+        ? " — one or more steps in this chain don't have a confirmed tax number yet, so this is a lower bound"
+        : '';
+      costLine = `<p class="cost-line">&#128176; ~${acc.total.toFixed(2)} cr in station tax for ×${qty}, across every craft step in the chain${incompleteNote}</p>`;
+    }
   }
 
   const renderRows = (map) =>
@@ -530,6 +603,7 @@ function renderRawBreakdown(itemId, container, qty, mode) {
 
   container.innerHTML = `
     ${timeLine}
+    ${costLine}
     <p class="raw-note">Everything needed for ×${qty}, tracing each sub-recipe down to its base materials (using the first recipe option at each step where there's more than one):</p>
     ${intermediateSection}
     <p class="section-label">Base/raw materials</p>
