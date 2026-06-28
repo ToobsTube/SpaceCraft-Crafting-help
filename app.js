@@ -503,14 +503,16 @@ function computeRawMaterials(itemId, neededQty, totals, intermediates, visiting)
   visiting.delete(itemId);
 }
 
-// ---- Total station tax across the whole craft chain ----
-// New players without a base have no choice but to craft at a taxed station — and
-// that tax applies to EVERY step in the chain, not just the top-level item. This walks
-// the same tree as computeRawMaterials but sums up tax cost instead of materials.
-// `acc` is a mutable accumulator: { total: number, incomplete: boolean }. `incomplete`
-// gets flagged if any craft step along the way doesn't have a confirmed tax number yet
-// (e.g. the Crystallizer recipes), so the total is a known lower bound in that case.
-function computeTotalTax(itemId, neededQty, visiting, acc) {
+// ---- Station tax, broken out per craft step ----
+// New players without a base have no choice but to craft at a taxed station — and that
+// tax applies to EVERY step in the chain, not just the top-level item. This walks the
+// same tree as computeRawMaterials but tracks tax cost per craft step (e.g. Wire's own
+// tax separately from Copper Ingot's), so a player can see exactly which step is worth
+// doing at a base vs which is cheap enough to just eat the tax on at a station.
+// `steps` is a Map<itemName, { cost: number, confirmed: boolean }>. confirmed is false
+// for any step whose recipe doesn't have a tax number yet (e.g. the Crystallizer recipes) —
+// its cost is left out of the total rather than guessed at.
+function computeTaxBreakdown(itemId, neededQty, visiting, steps) {
   const item = state.items.find((i) => i.id === itemId);
   if (!item || visiting.has(itemId)) return;
 
@@ -525,11 +527,13 @@ function computeTotalTax(itemId, neededQty, visiting, acc) {
 
   if (recipe) {
     const taxedEntry = recipe.tax && Object.entries(recipe.tax).find(([loc]) => loc !== 'personal_base');
+    const entry = steps.get(item.name) || { cost: 0, confirmed: true };
     if (taxedEntry) {
-      acc.total += batches * taxedEntry[1];
+      entry.cost += batches * taxedEntry[1];
     } else {
-      acc.incomplete = true;
+      entry.confirmed = false;
     }
+    steps.set(item.name, entry);
   }
 
   (ingredients || []).forEach((ing) => {
@@ -539,7 +543,7 @@ function computeTotalTax(itemId, neededQty, visiting, acc) {
     const cyclic = subItem && visiting.has(slug);
     const subExpandable = subItem && !cyclic && ((subItem.recipes && subItem.recipes.length) || (subItem.ingredients && subItem.ingredients.length));
     if (subExpandable) {
-      computeTotalTax(slug, requiredQty, visiting, acc);
+      computeTaxBreakdown(slug, requiredQty, visiting, steps);
     }
   });
 
@@ -571,16 +575,36 @@ function renderRawBreakdown(itemId, container, qty, mode, location) {
   }
 
   let costLine = '';
+  let taxListSection = '';
   if (topRecipe) {
     if (location === 'base') {
       costLine = `<p class="cost-line">&#128176; Free — no tax crafting at a personal base.</p>`;
     } else {
-      const acc = { total: 0, incomplete: false };
-      computeTotalTax(itemId, qty, new Set(), acc);
-      const incompleteNote = acc.incomplete
-        ? " — one or more steps in this chain don't have a confirmed tax number yet, so this is a lower bound"
+      const steps = new Map();
+      computeTaxBreakdown(itemId, qty, new Set(), steps);
+      let total = 0;
+      let incomplete = false;
+      steps.forEach((s) => {
+        total += s.cost;
+        if (!s.confirmed) incomplete = true;
+      });
+      const incompleteNote = incomplete
+        ? " — one or more steps below don't have a confirmed tax number yet, so this is a lower bound"
         : '';
-      costLine = `<p class="cost-line">&#128176; ~${acc.total.toFixed(2)} cr in station tax for ×${qty}, across every craft step in the chain${incompleteNote}</p>`;
+      costLine = `<p class="cost-line">&#128176; ~${total.toFixed(2)} cr in station tax for ×${qty}, across every craft step in the chain${incompleteNote}</p>`;
+
+      const taxRows = Array.from(steps.entries())
+        .sort((a, b) => b[1].cost - a[1].cost)
+        .map(([name, s]) => {
+          const slug = slugify(name);
+          const linkable = idLookup.has(slug);
+          const linkAttrs = linkable ? ` data-target="${slug}"` : '';
+          const linkClass = linkable ? ' linkable' : '';
+          const valueHtml = s.confirmed ? `${s.cost.toFixed(2)} cr` : 'tax not confirmed yet';
+          return `<li><span class="ing-name${linkClass}"${linkAttrs}>${escapeHtml(name)}</span><span class="ing-qty">${valueHtml}</span></li>`;
+        })
+        .join('');
+      taxListSection = `<p class="section-label">Tax by craft step</p><ul class="ingredients tax-list">${taxRows}</ul>`;
     }
   }
 
@@ -604,6 +628,7 @@ function renderRawBreakdown(itemId, container, qty, mode, location) {
   container.innerHTML = `
     ${timeLine}
     ${costLine}
+    ${taxListSection}
     <p class="raw-note">Everything needed for ×${qty}, tracing each sub-recipe down to its base materials (using the first recipe option at each step where there's more than one):</p>
     ${intermediateSection}
     <p class="section-label">Base/raw materials</p>
