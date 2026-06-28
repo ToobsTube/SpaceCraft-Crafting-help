@@ -27,22 +27,16 @@
       <input id="search" type="text" placeholder="search items…" autocomplete="off" />
     </div>
 
-    <nav class="tabs" id="tabs">
-      <button class="tab active" data-cat="All">All</button>
-      <button class="tab" data-cat="Extraction">Extraction</button>
-      <button class="tab" data-cat="Gathering">Gathering</button>
-      <button class="tab" data-cat="Base Building">Base Building</button>
-      <button class="tab" data-cat="Refining">Refining</button>
-      <button class="tab" data-cat="Components">Components</button>
-      <button class="tab" data-cat="Crystal Geometry">Crystal Geometry</button>
-      <button class="tab" data-cat="Contractor Equipment">Contractor Equipment</button>
-      <button class="tab" data-cat="External Module">External Module</button>
-      <button class="tab" data-cat="Ship Component">Ship Component</button>
-      <button class="tab" data-cat="Factory Kit">Factory Kit</button>
-      <button class="tab" data-cat="Other">Other</button>
-      <button class="tab" data-cat="Internal Module">Internal Module</button>
-      <button class="tab" data-cat="Ship Part">Ship Part</button>
-    </nav>
+    <div class="category-wrap">
+      <label class="category-label" for="category-select">Category</label>
+      <select class="category-select" id="category-select">
+        <option value="All">All</option>
+        <option value="Base Building">Base Building</option>
+        <option value="Ship Parts">Ship Parts</option>
+        <option value="Components">Components</option>
+        <option value="Resources">Resources</option>
+      </select>
+    </div>
   </header>
 
   <div class="layout">
