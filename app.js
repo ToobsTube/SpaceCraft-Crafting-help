@@ -550,6 +550,45 @@ function computeTaxBreakdown(itemId, neededQty, visiting, steps) {
   visiting.delete(itemId);
 }
 
+// ---- Craft depth (steps removed from raw materials) ----
+// Used purely for display ordering. An item crafted directly from raw materials
+// (e.g. Copper Ingot, straight from Copper Ore) has depth 1. An item built from THAT
+// (e.g. Wire, from Copper Ingot) has depth 2, and so on — depth is always 1 + the
+// deepest of its own expandable ingredients. Memoized since the same item can show up
+// in many branches of a big breakdown.
+function getCraftDepth(itemId, memo, visiting) {
+  if (memo.has(itemId)) return memo.get(itemId);
+  if (visiting.has(itemId)) return 0; // cycle guard — don't loop forever on Pyrite<->Sulfur etc.
+
+  const item = state.items.find((i) => i.id === itemId);
+  if (!item) return 0;
+
+  const recipe = item.recipes && item.recipes.length ? item.recipes[0] : null;
+  const flatIngredients = !recipe && item.ingredients && item.ingredients.length ? item.ingredients : null;
+  const ingredients = recipe ? recipe.ingredients : flatIngredients;
+  if (!ingredients || !ingredients.length) {
+    memo.set(itemId, 0);
+    return 0;
+  }
+
+  visiting.add(itemId);
+  let deepestSub = 0;
+  ingredients.forEach((ing) => {
+    const slug = slugify(ing.item);
+    const subItem = state.items.find((i) => i.id === slug);
+    const subExpandable = subItem && !visiting.has(slug) && ((subItem.recipes && subItem.recipes.length) || (subItem.ingredients && subItem.ingredients.length));
+    if (subExpandable) {
+      const d = getCraftDepth(slug, memo, visiting);
+      if (d > deepestSub) deepestSub = d;
+    }
+  });
+  visiting.delete(itemId);
+
+  const depth = deepestSub + 1;
+  memo.set(itemId, depth);
+  return depth;
+}
+
 function renderRawBreakdown(itemId, container, qty, mode, location) {
   qty = qty || 1;
   mode = mode || 'manual';
@@ -574,6 +613,9 @@ function renderRawBreakdown(itemId, container, qty, mode, location) {
     timeLine = `<p class="time-line">&#9201; ~${formatDuration(batchesNeeded * perCraft)} to craft ×${qty} (${batchesNeeded} batch${batchesNeeded === 1 ? '' : 'es'} of ${perCraft}s each, ${modeLabel}, one machine running back-to-back)${fallbackNote}</p>`;
   }
 
+  const depthMemo = new Map();
+  const depthOf = (name) => getCraftDepth(slugify(name), depthMemo, new Set());
+
   let costLine = '';
   let taxListSection = '';
   if (topRecipe) {
@@ -594,7 +636,7 @@ function renderRawBreakdown(itemId, container, qty, mode, location) {
       costLine = `<p class="cost-line">&#128176; ~${total.toFixed(2)} cr in station tax for ×${qty}, across every craft step in the chain${incompleteNote}</p>`;
 
       const taxRows = Array.from(steps.entries())
-        .sort((a, b) => b[1].cost - a[1].cost)
+        .sort((a, b) => depthOf(b[0]) - depthOf(a[0]) || b[1].cost - a[1].cost)
         .map(([name, s]) => {
           const slug = slugify(name);
           const linkable = idLookup.has(slug);
@@ -608,9 +650,9 @@ function renderRawBreakdown(itemId, container, qty, mode, location) {
     }
   }
 
-  const renderRows = (map) =>
+  const renderRows = (map, sortFn) =>
     Array.from(map.entries())
-      .sort((a, b) => b[1] - a[1])
+      .sort(sortFn)
       .map(([name, total]) => {
         const slug = slugify(name);
         const linkable = idLookup.has(slug);
@@ -622,7 +664,7 @@ function renderRawBreakdown(itemId, container, qty, mode, location) {
       .join('');
 
   const intermediateSection = intermediates.size
-    ? `<p class="section-label">Sub-crafts needed along the way</p><ul class="ingredients raw-list">${renderRows(intermediates)}</ul>`
+    ? `<p class="section-label">Sub-crafts needed along the way</p><p class="raw-note">Ordered top to bottom: most complex first, basic ingots last — right above the raw materials below.</p><ul class="ingredients raw-list">${renderRows(intermediates, (a, b) => depthOf(b[0]) - depthOf(a[0]) || b[1] - a[1])}</ul>`
     : '';
 
   container.innerHTML = `
@@ -632,7 +674,7 @@ function renderRawBreakdown(itemId, container, qty, mode, location) {
     <p class="raw-note">Everything needed for ×${qty}, tracing each sub-recipe down to its base materials (using the first recipe option at each step where there's more than one):</p>
     ${intermediateSection}
     <p class="section-label">Base/raw materials</p>
-    <ul class="ingredients raw-list">${renderRows(totals)}</ul>
+    <ul class="ingredients raw-list">${renderRows(totals, (a, b) => b[1] - a[1])}</ul>
   `;
 
   container.querySelectorAll('.ing-name.linkable').forEach((link) => {
