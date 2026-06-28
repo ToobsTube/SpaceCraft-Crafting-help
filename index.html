@@ -29,15 +29,28 @@
 
     <div class="category-wrap">
       <label class="category-label" for="category-select">Category</label>
-      <select class="category-select" id="category-select">
-        <option value="All">All</option>
-        <option value="Base Building">Base Building</option>
-        <option value="Ship Parts">Ship Parts</option>
-        <option value="Components">Components</option>
-        <option value="Resources">Resources</option>
-      </select>
+      <div class="category-row">
+        <select class="category-select" id="category-select">
+          <option value="All">All</option>
+          <option value="Base Building">Base Building</option>
+          <option value="Ship Parts">Ship Parts</option>
+          <option value="Components">Components</option>
+          <option value="Resources">Resources</option>
+        </select>
+        <button class="plan-button" id="plan-button" type="button">Plan <span class="plan-count" id="plan-count">0</span></button>
+      </div>
     </div>
   </header>
+
+  <div class="plan-overlay" id="plan-overlay" hidden>
+    <div class="plan-modal">
+      <div class="plan-modal-head">
+        <h2>Build plan</h2>
+        <button class="plan-close" id="plan-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="plan-modal-body" id="plan-modal-body"></div>
+    </div>
+  </div>
 
   <div class="layout">
     <main id="list" class="list"></main>
