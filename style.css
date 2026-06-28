@@ -387,6 +387,9 @@ h1 {
 .deposits-list .ing-name { color: var(--text); }
 .deposits-list .ing-qty { color: var(--gold); }
 
+.tax-list .ing-name { color: var(--text); }
+.tax-list .ing-qty { color: var(--gold); }
+
 .source-note {
   color: var(--text-dim);
   font-size: 12px;
