@@ -17,19 +17,15 @@ async function init() {
     render();
   });
 
-  document.getElementById('tabs').addEventListener('click', (e) => {
-    const btn = e.target.closest('.tab');
-    if (!btn) return;
-    document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
-    btn.classList.add('active');
-    state.category = btn.dataset.cat;
+  document.getElementById('category-select').addEventListener('change', (e) => {
+    state.category = e.target.value;
     render();
   });
 }
 
 // ---- Filtering ----
 function matches(item) {
-  const inCategory = state.category === 'All' || item.category === state.category;
+  const inCategory = state.category === 'All' || item.group === state.category;
   if (!inCategory) return false;
   if (!state.query) return true;
 
@@ -709,8 +705,7 @@ function jumpTo(id) {
     state.query = '';
     state.category = 'All';
     document.getElementById('search').value = '';
-    document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
-    document.querySelector('.tab[data-cat="All"]').classList.add('active');
+    document.getElementById('category-select').value = 'All';
     render();
   }
 
