@@ -61,7 +61,7 @@ function updatePlanCount() {
 
 // ---- Init ----
 async function init() {
-  const res = await fetch('data/recipes.json');
+  const res = await fetch('data/recipes.json?v=4');
   state.items = await res.json();
   state.plan = loadPlan();
   updatePlanCount();
